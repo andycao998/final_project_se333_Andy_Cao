@@ -1,0 +1,13 @@
+{
+	"servers": {
+		"github": {
+			"type": "http",
+			"url": "https://api.githubcopilot.com/mcp/"
+		},
+		"se333-mcp-server": {
+			"url": "http://127.0.0.1:8000/sse",
+			"type": "http"
+		},
+	},
+	"inputs": []
+}
