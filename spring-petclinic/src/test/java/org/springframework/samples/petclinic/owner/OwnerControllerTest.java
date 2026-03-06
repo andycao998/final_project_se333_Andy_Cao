@@ -31,14 +31,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.ui.Model;
-import org.springframework.validation.BeanPropertyBindingResult;
-import org.springframework.validation.BindingResult;
-import org.springframework.web.servlet.ModelAndView;
-import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
+import org.springframework.web.bind.WebDataBinder;
 
 /**
  * Test class for {@link OwnerController}
@@ -148,6 +141,19 @@ class OwnerControllerTest {
 	}
 
 	@Test
+	void testProcessFindFormLastNameNull() {
+		owner.setLastName(null);
+		Page<Owner> ownersPage = new PageImpl<>(List.of(owner));
+		given(owners.findByLastNameStartingWith("", any(PageRequest.class))).willReturn(ownersPage);
+
+		BindingResult result = new BeanPropertyBindingResult(owner, "owner");
+
+		String response = controller.processFindForm(1, owner, result, mockModel);
+
+		assertThat(response).isEqualTo("redirect:/owners/" + owner.getId());
+	}
+
+	@Test
 	void testInitUpdateOwnerForm() {
 		String result = controller.initUpdateOwnerForm();
 
@@ -178,6 +184,18 @@ class OwnerControllerTest {
 	}
 
 	@Test
+	void testProcessUpdateOwnerFormIdMismatch() {
+		owner.setId(2);
+		BindingResult result = new BeanPropertyBindingResult(owner, "owner");
+		RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+
+		String response = controller.processUpdateOwnerForm(owner, result, 1, redirectAttributes);
+
+		assertThat(response).isEqualTo("redirect:/owners/{ownerId}/edit");
+		assertThat(result.hasErrors()).isTrue();
+	}
+
+	@Test
 	void testShowOwner() {
 		given(owners.findById(1)).willReturn(Optional.of(owner));
 
@@ -185,6 +203,48 @@ class OwnerControllerTest {
 
 		assertThat(mav.getViewName()).isEqualTo("owners/ownerDetails");
 		assertThat(mav.getModel().get("owner")).isEqualTo(owner);
+	}
+
+	@Test
+	void testShowOwnerOwnerNotFound() {
+		given(owners.findById(1)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> controller.showOwner(1)).isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("Owner not found with id: 1");
+	}
+
+	@Test
+	void testSetAllowedFields() {
+		WebDataBinder dataBinder = mock(WebDataBinder.class);
+
+		controller.setAllowedFields(dataBinder);
+
+		verify(dataBinder).setDisallowedFields("id");
+	}
+
+	@Test
+	void testFindOwner() {
+		given(owners.findById(1)).willReturn(Optional.of(owner));
+
+		Owner result = controller.findOwner(1);
+
+		assertThat(result).isEqualTo(owner);
+	}
+
+	@Test
+	void testFindOwnerNotFound() {
+		given(owners.findById(1)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> controller.findOwner(1)).isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("Owner not found with id: 1");
+	}
+
+	@Test
+	void testFindOwnerNullId() {
+		Owner result = controller.findOwner(null);
+
+		assertThat(result).isNotNull();
+		assertThat(result.getId()).isNull();
 	}
 
 }
