@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ui.ModelMap;
 import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @ExtendWith(MockitoExtension.class)
@@ -254,6 +256,86 @@ class PetControllerTest {
 
 		assertThat(result).isEqualTo("pets/createOrUpdatePetForm");
 		verify(ownerRepository, never()).save(any());
+	}
+
+	@Test
+	void testInitOwnerBinder() {
+		WebDataBinder dataBinder = mock(WebDataBinder.class);
+
+		petController.initOwnerBinder(dataBinder);
+
+		verify(dataBinder).setDisallowedFields("id");
+	}
+
+	@Test
+	void testInitPetBinder() {
+		WebDataBinder dataBinder = mock(WebDataBinder.class);
+
+		petController.initPetBinder(dataBinder);
+
+		verify(dataBinder).setValidator(any(PetValidator.class));
+	}
+
+	@Test
+	void testProcessCreationFormPetNotNew() {
+		pet.setId(1); // not new
+		BindingResult bindingResult = mock(BindingResult.class);
+		RedirectAttributes redirectAttributes = mock(RedirectAttributes.class);
+
+		String result = petController.processCreationForm(owner, pet, bindingResult, redirectAttributes);
+
+		assertThat(result).isEqualTo("redirect:/owners/{ownerId}");
+		verify(ownerRepository).save(owner);
+		verify(redirectAttributes).addFlashAttribute("message", "New Pet has been Added");
+	}
+
+	@Test
+	void testProcessUpdateFormEmptyName() {
+		owner.getPets().add(pet);
+		pet.setName("");
+		BindingResult bindingResult = mock(BindingResult.class);
+		RedirectAttributes redirectAttributes = mock(RedirectAttributes.class);
+
+		String result = petController.processUpdateForm(owner, pet, bindingResult, redirectAttributes);
+
+		assertThat(result).isEqualTo("redirect:/owners/{ownerId}");
+		verify(ownerRepository).save(owner);
+		verify(redirectAttributes).addFlashAttribute("message", "Pet details has been edited");
+	}
+
+	@Test
+	void testProcessUpdateFormPetIdNull() {
+		owner.getPets().add(pet);
+		pet.setId(null);
+		BindingResult bindingResult = mock(BindingResult.class);
+		RedirectAttributes redirectAttributes = mock(RedirectAttributes.class);
+
+		try {
+			petController.processUpdateForm(owner, pet, bindingResult, redirectAttributes);
+		}
+		catch (IllegalStateException e) {
+			assertThat(e.getMessage()).contains("'pet.getId()' must not be null");
+		}
+	}
+
+	@Test
+	void testProcessUpdateFormPetNotInOwner() {
+		Owner spiedOwner = spy(owner);
+		spiedOwner.setId(1);
+		Pet updatePet = new Pet();
+		updatePet.setId(1);
+		updatePet.setName("New Name");
+		updatePet.setBirthDate(LocalDate.now());
+		updatePet.setType(petType);
+		BindingResult bindingResult = mock(BindingResult.class);
+		RedirectAttributes redirectAttributes = mock(RedirectAttributes.class);
+
+		String result = petController.processUpdateForm(spiedOwner, updatePet, bindingResult, redirectAttributes);
+
+		assertThat(result).isEqualTo("redirect:/owners/{ownerId}");
+		verify(spiedOwner).addPet(updatePet);
+		verify(ownerRepository).save(spiedOwner);
+		verify(redirectAttributes).addFlashAttribute("message", "Pet details has been edited");
 	}
 
 }
